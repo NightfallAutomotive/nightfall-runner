@@ -23,12 +23,22 @@
   const STORAGE_KEY = "nightfall-runner-best-v1";
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  // Speed tuning: speed steps up every LEVEL_DISTANCE points.
+  const BASE_SPEED = 330;
+  const SPEED_STEP = 40;        // added per level
+  const MAX_SPEED = 690;        // cap (reached at level 9)
+  const LEVEL_DISTANCE = 1000;  // score needed per level
+  const SPEED_EASE = 2.5;       // how quickly speed glides to the new target
+
   let state = "ready";
+  let rafId = null;
   let lastTime = 0;
   let elapsed = 0;
   let distance = 0;
   let best = readBest();
-  let speed = 330;
+  let speed = BASE_SPEED;
+  let level = 0;
+  let banner = 0;
   let spawnTimer = 1.1;
   let roadOffset = 0;
   let shake = 0;
@@ -39,6 +49,8 @@
   let keys = { down: false };
   let audioContext = null;
   let soundEnabled = false;
+  let shownScore = -1;
+  let shownBest = -1;
 
   const car = { x: CAR_X, y: GROUND - CAR_H, vy: 0, w: CAR_W, h: CAR_H, grounded: true, ducking: false };
 
@@ -51,13 +63,21 @@
     return String(Math.floor(value)).padStart(5, "0");
   }
 
-  function updateScoreUI() {
-    const score = formatScore(distance);
-    const record = formatScore(best);
-    hudDistance.textContent = score;
-    distanceStat.textContent = score;
-    hudBest.textContent = record;
-    bestStat.textContent = record;
+  // Only touches the DOM when a displayed number actually changes.
+  function updateScoreUI(force = false) {
+    const score = Math.floor(distance);
+    if (force || score !== shownScore) {
+      shownScore = score;
+      const text = formatScore(score);
+      hudDistance.textContent = text;
+      distanceStat.textContent = text;
+    }
+    if (force || best !== shownBest) {
+      shownBest = best;
+      const text = formatScore(best);
+      hudBest.textContent = text;
+      bestStat.textContent = text;
+    }
   }
 
   function createStars() {
@@ -73,16 +93,24 @@
     }));
   }
 
+  function targetSpeed() {
+    return Math.min(MAX_SPEED, BASE_SPEED + Math.floor(distance / LEVEL_DISTANCE) * SPEED_STEP);
+  }
+
   function startGame() {
+    if (state === "running") return;
     unlockAudio();
     state = "running";
     elapsed = 0;
     distance = 0;
-    speed = 330;
+    speed = BASE_SPEED;
+    level = 0;
+    banner = 0;
     spawnTimer = .7;
     roadOffset = 0;
     shake = 0;
     flash = 0;
+    lastTime = 0;
     obstacles = [];
     particles = [];
     car.y = GROUND - CAR_H;
@@ -91,26 +119,31 @@
     car.ducking = false;
     overlay.classList.add("hidden");
     canvas.focus({ preventScroll: true });
-    updateScoreUI();
+    updateScoreUI(true);
     playTone(420, .06, "sine", .035);
-    requestAnimationFrame(loop);
+    if (rafId !== null) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(loop);
   }
 
   function endGame() {
     if (state !== "running") return;
     state = "over";
-    shake = 11;
-    flash = .35;
+    banner = 0;
+    shake = reducedMotion ? 0 : 11;
+    flash = reducedMotion ? 0 : .35;
     burst(CAR_X + 80, car.y + 18, 26, "#b48ead");
     burst(CAR_X + 55, car.y + 28, 18, "#88c0d0");
     playTone(120, .22, "sawtooth", .05);
-    if (distance > best) {
-      best = Math.floor(distance);
+
+    const finalScore = Math.floor(distance);
+    const newBest = finalScore > best;
+    if (newBest) {
+      best = finalScore;
       try { localStorage.setItem(STORAGE_KEY, String(best)); } catch (_) {}
     }
-    updateScoreUI();
+    updateScoreUI(true);
     overlayTitle.innerHTML = "RUN <span>ENDED</span>";
-    overlayMessage.innerHTML = `You covered <strong>${formatScore(distance)} m</strong>.<br>${distance >= best ? "New personal best. Nice driving." : "The road is still waiting."}`;
+    overlayMessage.innerHTML = `You covered <strong>${formatScore(finalScore)} m</strong>.<br>${newBest ? "New personal best. Nice driving." : "The road is still waiting."}`;
     startButton.innerHTML = 'TRY AGAIN <span>↻</span>';
     overlay.classList.remove("hidden");
   }
@@ -130,9 +163,10 @@
   }
 
   function duck(on) {
+    const wasDown = keys.down;
     keys.down = on;
     car.ducking = on && !car.grounded;
-    if (on && state === "running" && !car.grounded) car.vy += 30;
+    if (on && !wasDown && state === "running" && !car.grounded) car.vy += 30;
   }
 
   function spawnObstacle() {
@@ -153,10 +187,21 @@
   function update(dt) {
     elapsed += dt;
     distance += speed * dt / 10;
-    speed = Math.min(690, 330 + distance * 1.15);
+
+    // Stepped speed: every LEVEL_DISTANCE points the target goes up,
+    // and the actual speed glides toward it.
+    const newLevel = Math.floor(distance / LEVEL_DISTANCE);
+    if (newLevel > level) {
+      level = newLevel;
+      if (targetSpeed() > speed + 1) {
+        banner = 1.4;
+        playTone(660, .1, "square", .03);
+      }
+    }
+    const target = targetSpeed();
+    speed += (target - speed) * Math.min(1, dt * SPEED_EASE);
+
     roadOffset = (roadOffset + speed * dt) % 100;
-    if (shake > 0) shake = Math.max(0, shake - dt * 32);
-    if (flash > 0) flash = Math.max(0, flash - dt * 1.6);
 
     car.ducking = keys.down && !car.grounded;
     car.vy += 1750 * dt;
@@ -171,6 +216,11 @@
     spawnTimer -= dt;
     if (spawnTimer <= 0) spawnObstacle();
 
+    const carBox = {
+      x: car.x + 14, y: car.y + (car.ducking ? 20 : 8),
+      w: car.w - 24, h: car.ducking ? 18 : car.h - 12
+    };
+
     for (const ob of obstacles) {
       ob.x -= speed * dt;
       ob.phase += dt * 5;
@@ -178,10 +228,6 @@
         ob.passed = true;
         burst(ob.x + ob.w, GROUND - 4, 3, "#a3be8c", true);
       }
-      const carBox = {
-        x: car.x + 14, y: car.y + (car.ducking ? 20 : 8),
-        w: car.w - 24, h: car.ducking ? 18 : car.h - 12
-      };
       const obBox = { x: ob.x + 5, y: ob.y + 5, w: ob.w - 10, h: ob.h - 5 };
       if (overlaps(carBox, obBox)) {
         endGame();
@@ -189,8 +235,16 @@
       }
     }
     obstacles = obstacles.filter(ob => ob.x + ob.w > -40);
-    updateParticles(dt);
+    updateEffects(dt);
     updateScoreUI();
+  }
+
+  // Runs during play and after a crash so the death effects can finish.
+  function updateEffects(dt) {
+    if (shake > 0) shake = Math.max(0, shake - dt * 32);
+    if (flash > 0) flash = Math.max(0, flash - dt * 1.6);
+    if (banner > 0) banner = Math.max(0, banner - dt);
+    updateParticles(dt);
   }
 
   function overlaps(a, b) {
@@ -201,9 +255,10 @@
     for (let i = 0; i < count; i++) {
       const angle = dust ? Math.PI + Math.random() * Math.PI : Math.random() * Math.PI * 2;
       const force = dust ? 30 + Math.random() * 90 : 35 + Math.random() * 210;
+      const life = .35 + Math.random() * .65;
       particles.push({
         x, y, vx: Math.cos(angle) * force, vy: Math.sin(angle) * force - (dust ? 0 : 40),
-        life: .35 + Math.random() * .65, maxLife: .35 + Math.random() * .65,
+        life, maxLife: life,
         size: 1 + Math.random() * 3, color, gravity: dust ? 90 : 280
       });
     }
@@ -227,10 +282,30 @@
     drawObstacles();
     drawCar();
     drawParticles();
+    drawBanner();
     if (flash > 0) {
       ctx.fillStyle = `rgba(180,142,173,${flash * .45})`;
       ctx.fillRect(0, 0, W, H);
     }
+    ctx.restore();
+  }
+
+  function drawBanner() {
+    if (banner <= 0) return;
+    const fadeIn = Math.min(1, (1.4 - banner) * 6);
+    const fadeOut = Math.min(1, banner * 2);
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(fadeIn, fadeOut));
+    ctx.textAlign = "center";
+    ctx.shadowColor = "#88c0d0";
+    ctx.shadowBlur = 16;
+    ctx.fillStyle = "#88c0d0";
+    ctx.font = "bold 30px monospace";
+    ctx.fillText("SPEED UP", W / 2, 110);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#b48ead";
+    ctx.font = "bold 14px monospace";
+    ctx.fillText(`LEVEL ${level + 1}`, W / 2, 134);
     ctx.restore();
   }
 
@@ -249,7 +324,7 @@
     ctx.fillRect(0, 0, W, GROUND);
 
     for (const star of stars) {
-      const twinkle = .7 + Math.sin(elapsed * 1.5 + star.phase) * .3;
+      const twinkle = reducedMotion ? 1 : .7 + Math.sin(elapsed * 1.5 + star.phase) * .3;
       ctx.globalAlpha = star.a * twinkle;
       ctx.fillStyle = "#d8e8ff";
       ctx.fillRect(star.x, star.y, star.r, star.r);
@@ -345,7 +420,7 @@
   function drawCar() {
     const x = car.x;
     const y = car.y + (car.ducking ? 13 : 0);
-    const bob = car.grounded && state === "running" ? Math.sin(elapsed * 25) * 1.3 : 0;
+    const bob = car.grounded && state === "running" && !reducedMotion ? Math.sin(elapsed * 25) * 1.3 : 0;
     const yy = y + bob;
 
     // ground shadow
@@ -403,10 +478,11 @@
     // front splitter and lights
     ctx.fillStyle = "#b48ead";
     ctx.fillRect(x + 84, yy + 34, 18, 3);
+    ctx.save();
     ctx.fillStyle = "#eceff4";
     ctx.shadowColor = "#eceff4"; ctx.shadowBlur = 10;
     ctx.fillRect(x + 95, yy + 23, 6, 4);
-    ctx.shadowBlur = 0;
+    ctx.restore();
     ctx.fillStyle = "#bf616a";
     ctx.fillRect(x + 11, yy + 25, 4, 5);
 
@@ -493,26 +569,35 @@
   }
 
   function loop(now) {
-    if (state !== "running") {
-      draw();
-      return;
-    }
+    rafId = null;
     const dt = Math.min(.032, (now - (lastTime || now)) / 1000);
     lastTime = now;
-    update(dt);
+
+    if (state === "running") update(dt);
+    else updateEffects(dt);
     draw();
-    if (state === "running") requestAnimationFrame(loop);
+
+    // Keep going while playing, and after a crash until the effects finish.
+    if (state === "running" || particles.length || shake > 0 || flash > 0) {
+      rafId = requestAnimationFrame(loop);
+    } else {
+      lastTime = 0;
+    }
   }
 
   function unlockAudio() {
-    if (soundEnabled) return;
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtx) {
-        audioContext = new AudioCtx();
-        soundEnabled = true;
-      }
-    } catch (_) { soundEnabled = false; }
+    if (!soundEnabled) {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          audioContext = new AudioCtx();
+          soundEnabled = true;
+        }
+      } catch (_) { soundEnabled = false; }
+    }
+    if (audioContext && audioContext.state === "suspended") {
+      audioContext.resume().catch(() => {});
+    }
   }
 
   function playTone(freq, duration, type = "sine", volume = .025) {
@@ -530,9 +615,13 @@
   }
 
   function handleKeyDown(event) {
+    // Leave browser shortcuts and focused links/buttons alone.
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.target instanceof Element && event.target.closest("a, button")) return;
+
     const key = event.key.toLowerCase();
     if ([" ", "arrowup", "arrowdown", "enter", "w", "s"].includes(key)) event.preventDefault();
-    if (event.repeat && [" ", "arrowup", "w", "enter"].includes(key)) return;
+    if (event.repeat) return;
     if ([" ", "arrowup", "w"].includes(key)) jump();
     if (["arrowdown", "s"].includes(key)) duck(true);
     if (key === "enter" && state !== "running") startGame();
@@ -552,13 +641,6 @@
   });
   startButton.addEventListener("click", startGame);
 
-  // Keep the canvas crisp when displayed at different CSS sizes.
-  function fitCanvas() {
-    // Fixed internal resolution keeps collision math deterministic; CSS scales the canvas.
-    draw();
-  }
-  window.addEventListener("resize", fitCanvas);
-
-  updateScoreUI();
+  updateScoreUI(true);
   drawReadyScene();
 })();
