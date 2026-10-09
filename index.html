@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#2e3440">
+  <meta name="description" content="You've taken a wrong turn. Play Nightfall Runner, the Nightfall Automotive arcade game.">
+  <title>404 — Nightfall Runner | Nightfall Automotive</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/game.js" defer></script>
+</head>
+<body>
+  <main class="page">
+    <header class="error-header">
+      <a class="brand" href="https://www.nightfallautomotive.co.uk/" aria-label="Nightfall Automotive home">
+        <span class="brand-mark" aria-hidden="true">N</span>
+        <span class="brand-copy"><strong>NIGHTFALL</strong><span>AUTOMOTIVE</span></span>
+      </a>
+      <span class="error-code">ERROR <strong>404</strong></span>
+    </header>
+
+    <section class="arcade" aria-labelledby="page-title">
+      <div class="arcade-header">
+        <div>
+          <p class="eyebrow">NIGHTFALL ARCADE // 001</p>
+          <h1 id="page-title">Wrong turn. <span>Right game.</span></h1>
+          <p class="intro">You've taken a wrong turn. See how far you can drive before the next breakdown.</p>
+        </div>
+        <div class="live-pill"><span class="live-dot"></span> ENGINE RUNNING</div>
+      </div>
+
+      <div class="arcade-layout">
+        <section class="info-panel" aria-label="Game information">
+          <div class="panel-kicker">THE MISSION</div>
+          <h2>Keep it<br><span>on the road.</span></h2>
+          <p>Put your foot down, clear the hazards and chase a new personal best. The road gets faster the longer you survive.</p>
+
+          <div class="stat-grid">
+            <div class="stat-card"><span>DISTANCE</span><strong id="distance-stat">00000</strong><small>METRES</small></div>
+            <div class="stat-card"><span>BEST RUN</span><strong id="best-stat">00000</strong><small>YOUR RECORD</small></div>
+          </div>
+
+          <div class="controls">
+            <div class="panel-kicker">CONTROLS</div>
+            <div class="control-row"><kbd>SPACE</kbd><kbd>↑</kbd><span>Jump</span></div>
+            <div class="control-row"><kbd>↓</kbd><span>Duck / drop faster</span></div>
+            <div class="control-row"><kbd>ENTER</kbd><span>Start / restart</span></div>
+            <p class="touch-hint"><span class="touch-icon">↗</span> On mobile: tap the game to jump.</p>
+          </div>
+
+          <a class="back-link" href="https://www.nightfallautomotive.co.uk/"><span aria-hidden="true">←</span> BACK TO NIGHTFALL AUTOMOTIVE</a>
+        </section>
+
+        <section class="console-panel" aria-label="Nightfall Runner game">
+          <div class="console-topline">
+            <span class="console-label"><span class="tiny-led"></span> NIGHTFALL RUNNER</span>
+            <span class="console-version">ARCADE SYSTEM / 01</span>
+          </div>
+          <div class="game-frame">
+            <div class="game-hud">
+              <span class="hud-label">DIST <b id="hud-distance">00000</b></span>
+              <span class="hud-center">NIGHTFALL <i>///</i> RUNNER</span>
+              <span class="hud-label">BEST <b id="hud-best">00000</b></span>
+            </div>
+            <canvas id="game" width="960" height="540" tabindex="0" aria-label="Nightfall Runner. Press Space or tap to jump over road hazards.">
+              Your browser does not support Canvas. Please use a modern browser to play Nightfall Runner.
+            </canvas>
+            <div class="screen-scanlines" aria-hidden="true"></div>
+            <div id="game-overlay" class="game-overlay">
+              <div class="overlay-content">
+                <span class="overlay-overline">NIGHTFALL AUTOMOTIVE PRESENTS</span>
+                <h2 id="overlay-title">NIGHTFALL<br><span>RUNNER</span></h2>
+                <p id="overlay-message">The road is yours.<br>Try not to write it off.</p>
+                <button id="start-button" class="start-button" type="button">START ENGINE <span>▶</span></button>
+                <small>SPACE / TAP TO JUMP</small>
+              </div>
+            </div>
+          </div>
+          <div class="console-footer">
+            <span><i class="footer-signal"></i> SYSTEM READY</span>
+            <span>BUILT FOR THE NIGHT SHIFT</span>
+            <span class="footer-right">NO LIMITS<span class="footer-slash"> ///</span></span>
+          </div>
+          <div class="console-decoration" aria-hidden="true">
+            <span class="decor-dot"></span><span class="decor-dot"></span><span class="decor-dot"></span>
+            <span class="decor-label">NF // PERFORMANCE DIVISION</span>
+          </div>
+        </section>
+      </div>
+      <footer class="arcade-bottom">
+        <span>BUILT AFTER HOURS <b>BY NIGHTFALL AUTOMOTIVE</b></span>
+        <span>404 // PAGE NOT FOUND <i>—</i> HIGH SCORE FOUND?</span>
+      </footer>
+    </section>
+    <footer class="page-footer">
+      <span>© NIGHTFALL AUTOMOTIVE</span>
+      <span>ECU REMAPPING · TUNING · DIAGNOSTICS</span>
+    </footer>
+  </main>
+</body>
+</html>
